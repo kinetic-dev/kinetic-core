@@ -10,7 +10,11 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
+#include "transactions/CreateContractOpFrame.h"
 #include "transactions/CreatePassiveOfferOpFrame.h"
+//#include "transactions/DestroyContractOpFrame.h"
+//#include "transactions/ExecuteContractOpFrame.h"
+//#include "transactions/LockContractOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
@@ -79,6 +83,14 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<InflationOpFrame>(op, res, tx);
     case MANAGE_DATA:
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
+    case CREATE_CONTRACT:
+        return std::make_shared<CreateContractOpFrame>(op, res, tx);
+    /*case LOCK_CONTRACT:
+        return std::make_shared<LockContractOpFrame>(op, res, tx);
+    case EXECUTE_CONTRACT:
+        return std::make_shared<ExecuteContractOpFrame>(op, res, tx);
+    case DESTROY_CONTRACT:
+        return std::make_shared<DestroyContractOpFrame>(op, res, tx);*/
 
     default:
         ostringstream err;

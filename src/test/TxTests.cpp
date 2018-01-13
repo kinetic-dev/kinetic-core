@@ -626,6 +626,17 @@ manageData(std::string const& name, DataValue* value)
     return op;
 }
 
+Operation
+createContract(PublicKey const& dest, int64_t amount, string64 scriptHash)
+{
+    Operation op;
+    op.body.type(CREATE_CONTRACT);
+    op.body.createContractOp().startingBalance = amount;
+    op.body.createContractOp().destination = dest;
+    op.body.createContractOp().scriptHash = scriptHash;
+    return op;
+}
+
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)
 {

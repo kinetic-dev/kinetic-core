@@ -34,22 +34,42 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "homedomain      VARCHAR(32)  NOT NULL,"
     "thresholds      TEXT         NOT NULL,"
     "flags           INT          NOT NULL,"
-    "lastmodified    INT          NOT NULL"
+    "lastmodified    INT          NOT NULL,"
+    "execipaddr      VARCHAR(32),"
+    "balancestaked   BIGINT       NOT NULL CHECK (balance >= 0),"
+    "scripthash      VARCHAR(64),"
+    "storagehash     VARCHAR(64)"
     ");";
 
 const char* AccountFrame::kSQLCreateStatement2 =
-    "CREATE TABLE signers"
+    "CREATE TABLE signerpools"
     "("
     "accountid       VARCHAR(56) NOT NULL,"
-    "publickey       VARCHAR(56) NOT NULL,"
+    "poolid          INT         NOT NULL,"
     "weight          INT         NOT NULL,"
-    "PRIMARY KEY (accountid, publickey)"
+    "minstakers      INT,"
+    "stakerstopn     INT,"
+    "stakerstopp     INT"
+    "PRIMARY KEY (accountid, poolid)"
     ");";
 
 const char* AccountFrame::kSQLCreateStatement3 =
+    "CREATE TABLE signers"
+    "("
+    "accountid       VARCHAR(56) NOT NULL,"
+    "poold           VARCHAR(56) NOT NULL,"
+    "publickey       VARCHAR(56) NOT NULL,"
+    "weight          INT         NOT NULL,"
+    "PRIMARY KEY (accountid, poolid, publickey)"
+    ");";
+
+const char* AccountFrame::kSQLCreateStatement4 =
+    "CREATE INDEX signerpoolsaccount ON signerpools (accountid)";
+
+const char* AccountFrame::kSQLCreateStatement5 =
     "CREATE INDEX signersaccount ON signers (accountid)";
 
-const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
+const char* AccountFrame::kSQLCreateStatement6 = "CREATE INDEX accountbalances "
                                                  "ON accounts (balance) WHERE "
                                                  "balance >= 1000000000";
 
@@ -223,7 +243,9 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     std::string publicKey, inflationDest, creditAuthKey;
     std::string homeDomain, thresholds;
+    std::string execIPAddr, scriptHash, storageHash;
     soci::indicator inflationDestInd;
+    soci::indicator execInd, scriptInd, storageInd;
 
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
@@ -231,7 +253,8 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     auto prep =
         db.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
                                 "inflationdest, homedomain, thresholds, "
-                                "flags, lastmodified "
+                                "flags, lastmodified, execipaddr, "
+                                "balancestaked, scripthash, storagehash "
                                 "FROM accounts WHERE accountid=:v1");
     auto& st = prep.statement();
     st.exchange(into(account.balance));
@@ -239,6 +262,10 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     st.exchange(into(account.numSubEntries));
     st.exchange(into(inflationDest, inflationDestInd));
     st.exchange(into(homeDomain));
+    st.exchange(into(execIPAddr, execInd));
+    st.exchange(into(scriptHash, scriptInd));
+    st.exchange(into(storageHash, storageInd));
+    st.exchange(into(account.balanceStaked));
     st.exchange(into(thresholds));
     st.exchange(into(account.flags));
     st.exchange(into(res->getLastModified()));
@@ -264,6 +291,18 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     {
         account.inflationDest.activate() =
             KeyUtils::fromStrKey<PublicKey>(inflationDest);
+    }
+
+    if (execInd) {
+      account.execIPAddr.activate() = execIPAddr;
+    }
+
+    if (scriptInd) {
+      account.scriptHash.activate() = scriptHash;
+    }
+
+    if (execInd) {
+      account.storageHash.activate() = storageHash;
     }
 
     account.signers.clear();
@@ -432,8 +471,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         sql = std::string(
             "INSERT INTO accounts ( accountid, balance, seqnum, "
             "numsubentries, inflationdest, homedomain, thresholds, flags, "
-            "lastmodified ) "
-            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8 )");
+            "lastmodified, execipaddr, balancestaked, "
+            "scripthash, storagehash ) "
+            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, "
+            ":v10, :v11, :v12 )");
     }
     else
     {
@@ -441,7 +482,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
             "UPDATE accounts SET balance = :v1, seqnum = :v2, "
             "numsubentries = :v3, "
             "inflationdest = :v4, homedomain = :v5, thresholds = :v6, "
-            "flags = :v7, lastmodified = :v8 WHERE accountid = :id");
+            "flags = :v7, lastmodified = :v8, execipaddr = :v9, "
+            "balancestaked = :v10, scripthash = :v11, "
+            "storagehash = :v12 "
+            "WHERE accountid = :id");
     }
 
     auto prep = db.getPreparedStatement(sql);
@@ -453,6 +497,33 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
     {
         inflationDestStrKey = KeyUtils::toStrKey(*mAccountEntry.inflationDest);
         inflation_ind = soci::i_ok;
+    }
+
+    soci::indicator exec_ind = soci::i_null;
+    string execIPAddr;
+
+    if (mAccountEntry.execIPAddr)
+    {
+        execIPAddr = *mAccountEntry.execIPAddr;
+        exec_ind = soci::i_ok;
+    }
+
+    soci::indicator script_ind = soci::i_null;
+    string scriptHash;
+
+    if (mAccountEntry.scriptHash)
+    {
+        scriptHash = *mAccountEntry.scriptHash;
+        script_ind = soci::i_ok;
+    }
+
+    soci::indicator storage_ind = soci::i_null;
+    string storageHash;
+
+    if (mAccountEntry.storageHash)
+    {
+        storageHash = *mAccountEntry.storageHash;
+        storage_ind = soci::i_ok;
     }
 
     string thresholds(bn::encode_b64(mAccountEntry.thresholds));
@@ -469,6 +540,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         st.exchange(use(thresholds, "v6"));
         st.exchange(use(mAccountEntry.flags, "v7"));
         st.exchange(use(getLastModified(), "v8"));
+        st.exchange(use(mAccountEntry.balanceStaked, "v9"));
+        st.exchange(use(execIPAddr, exec_ind, "v10"));
+        st.exchange(use(scriptHash, script_ind, "v11"));
+        st.exchange(use(storageHash, storage_ind, "v12"));
         st.define_and_bind();
         {
             auto timer = insert ? db.getInsertTimer("account")
@@ -715,11 +790,14 @@ void
 AccountFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS accounts;";
+    db.getSession() << "DROP TABLE IF EXISTS signerpools;";
     db.getSession() << "DROP TABLE IF EXISTS signers;";
 
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;
     db.getSession() << kSQLCreateStatement4;
+    db.getSession() << kSQLCreateStatement5;
+    db.getSession() << kSQLCreateStatement6;
 }
 }

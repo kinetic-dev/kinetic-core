@@ -23,7 +23,7 @@ class SignatureChecker
   public:
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        xdr::xvector<DecoratedSignature, 100> const& signatures);
 
     bool checkSignature(AccountID const& accountID,
                         std::vector<Signer> const& signersV,
@@ -35,7 +35,7 @@ class SignatureChecker
   private:
     uint32_t mProtocolVersion;
     Hash const& mContentsHash;
-    xdr::xvector<DecoratedSignature, 20> const& mSignatures;
+    xdr::xvector<DecoratedSignature, 100> const& mSignatures;
 
     std::vector<bool> mUsedSignatures;
     UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;

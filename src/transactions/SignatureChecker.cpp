@@ -19,7 +19,7 @@ using xdr::operator==;
 
 SignatureChecker::SignatureChecker(
     uint32_t protocolVersion, Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures)
+    xdr::xvector<DecoratedSignature, 100> const& signatures)
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}

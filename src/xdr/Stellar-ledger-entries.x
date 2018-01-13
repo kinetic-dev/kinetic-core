@@ -11,6 +11,7 @@ typedef PublicKey AccountID;
 typedef opaque Thresholds[4];
 typedef string string32<32>;
 typedef string string64<64>;
+typedef string string256<256>;
 typedef uint64 SequenceNumber;
 typedef opaque DataValue<64>; 
 
@@ -74,6 +75,19 @@ struct Signer
     uint32 weight; // really only need 1byte
 };
 
+// A signer pool can either by a static list of signers
+// or a dynamic set that includes some portion of top stakers
+struct SignerPool
+{
+    Signer signers<20>; // signers in the pool
+
+    uint32* minStakers; // minimum number of stakers required
+    uint32* minStakeTopN; // only allow top N stakers
+    uint32* minStakeTopP; // only allow top P percent of stakers 
+
+    uint32 weight; // really only need 1byte
+};
+
 enum AccountFlags
 { // masks for each flag
 
@@ -116,7 +130,15 @@ struct AccountEntry
     // thresholds stores unsigned bytes: [weight of master|low|medium|high]
     Thresholds thresholds;
 
-    Signer signers<20>; // possible signers for this account
+    SignerPool signerPools<10>;
+
+    // fields used if running an execution node
+    string32* execIPAddr;
+    int64 balanceStaked;
+
+    // fields used if account represents a contract
+    string64* scriptHash;
+    string64* storageHash;
 
     // reserved for future use
     union switch (int v)

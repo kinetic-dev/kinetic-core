@@ -25,7 +25,12 @@ enum OperationType
     ALLOW_TRUST = 7,
     ACCOUNT_MERGE = 8,
     INFLATION = 9,
-    MANAGE_DATA = 10
+    MANAGE_DATA = 10,
+    CREATE_CONTRACT = 100,
+    LOCK_CONTRACT = 101,
+    EXECUTE_CONTRACT = 102,
+    DESTROY_CONTRACT = 103,
+    MANAGE_STAKE = 104
 };
 
 /* CreateAccount
@@ -221,6 +226,70 @@ struct ManageDataOp
     DataValue* dataValue;   // set to null to clear
 };
 
+/* CreateContract
+Creates and funds a new contract with the specified starting balance.
+
+Threshold: med
+
+Result: CreateContractResult
+
+*/
+
+struct CreateContractOp
+{
+    AccountID destination; // contract to create
+    int64 startingBalance; // intial amount contract ends up with
+    string64 scriptHash;
+    Signer signers<100>;
+};
+
+/* LockContract
+Locks a contract for the specified amount of time.
+
+Threshold: med
+
+Result: LockContractResult
+
+*/
+
+struct LockContractOp
+{
+    AccountID destination; // contract to lock
+    uint64 duration; // the duration to lock for
+};
+
+/* ExecuteContract
+Executes a contract with the specified class, method and parameters.
+
+Threshold: med
+
+Result: ExecuteContractResult
+
+*/
+
+struct ExecuteContractOp
+{
+    AccountID contract; // contract to create
+    string64 classname;
+    string64 methodname;
+    string256 params;
+};
+
+/* DestroyContractOp
+Destroys a contract and sends funds to the specified address.
+
+Threshold: high
+
+Result: DestroyContractResult
+
+*/
+
+struct DestroyContractOp
+{
+    AccountID contract; // contract to destroy
+    AccountID destination; // account to send funds to
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -253,6 +322,14 @@ struct Operation
         void;
     case MANAGE_DATA:
         ManageDataOp manageDataOp;
+    case CREATE_CONTRACT:
+        CreateContractOp createContractOp;
+    case LOCK_CONTRACT:
+        LockContractOp lockContractOp;
+    case EXECUTE_CONTRACT:
+        ExecuteContractOp executeContractOp;
+    case DESTROY_CONTRACT:
+        DestroyContractOp destroyContractOp;
     }
     body;
 };
@@ -338,7 +415,7 @@ struct TransactionEnvelope
     /* Each decorated signature is a signature over the SHA256 hash of
      * a TransactionSignaturePayload */
     DecoratedSignature
-    signatures<20>;
+    signatures<100>;
 };
 
 /* Operation Results section */
@@ -646,6 +723,95 @@ default:
     void;
 };
 
+/******* CreateContract Result ********/
+
+enum CreateContractResultCode
+{
+    // codes considered as "success" for the operation
+    CREATE_CONTRACT_SUCCESS = 0, // account was created
+
+    // codes considered as "failure" for the operation
+    CREATE_CONTRACT_MALFORMED = -1,   // invalid destination
+    CREATE_CONTRACT_UNDERFUNDED = -2, // not enough funds in source account
+    CREATE_CONTRACT_LOW_RESERVE =
+        -3, // would create an account below the min reserve
+    CREATE_CONTRACT_ALREADY_EXIST = -4 // account already exists
+};
+
+union CreateContractResult switch (CreateContractResultCode code)
+{
+case CREATE_CONTRACT_SUCCESS:
+    void;
+default:
+    void;
+};
+
+/******* LockContract Result ********/
+
+enum LockContractResultCode
+{
+    // codes considered as "success" for the operation
+    LOCK_CONTRACT_SUCCESS = 0, // account was created
+
+    // codes considered as "failure" for the operation
+    LOCK_CONTRACT_MALFORMED = -1,   // invalid destination
+    LOCK_CONTRACT_UNDERFUNDED = -2, // not enough funds in source account
+    LOCK_CONTRACT_EXCEEDS_DURATION =
+        -3, // lock duration is longer than allowed
+    LOCK_CONTRACT_ALREADY_LOCKED = -4 // contract is already locked
+};
+
+union LockContractResult switch (LockContractResultCode code)
+{
+case LOCK_CONTRACT_SUCCESS:
+    void;
+default:
+    void;
+};
+
+/******* ExecuteContract Result ********/
+
+enum ExecuteContractResultCode
+{
+    // codes considered as "success" for the operation
+    EXECUTE_CONTRACT_SUCCESS = 0, // execution was successful
+
+    // codes considered as "failure" for the operation
+    EXECUTE_CONTRACT_MALFORMED = -1,   // invalid execution
+    EXECUTE_CONTRACT_LOCKED =
+        -2, // contract is locked by another account
+};
+
+union ExecuteContractResult switch (ExecuteContractResultCode code)
+{
+case EXECUTE_CONTRACT_SUCCESS:
+    void;
+default:
+    void;
+};
+
+/******* DestroyContract Result ********/
+
+enum DestroyContractResultCode
+{
+    // codes considered as "success" for the operation
+    DESTROY_CONTRACT_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    DESTROY_CONTRACT_MALFORMED = -1,      // can't destroy and send to self
+    DESTROY_CONTRACT_NO_ACCOUNT = -2,     // destination does not exist
+    DESTROY_CONTRACT_NOT_AUTHORIZED =
+        -3,  // destination is not authorized to destroy
+    DESTROY_CONTRACT_HAS_SUB_ENTRIES = -4 // account has trust lines/offers
+};
+
+union DestroyContractResult switch (DestroyContractResultCode code)
+{
+case DESTROY_CONTRACT_SUCCESS:
+    int64 contractBalance; // how much got transfered from source account
+default:
+    void;
+};
+
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -683,6 +849,14 @@ case opINNER:
         InflationResult inflationResult;
     case MANAGE_DATA:
         ManageDataResult manageDataResult;
+    case CREATE_CONTRACT:
+        CreateContractResult createContractResult;
+    case LOCK_CONTRACT:
+        LockContractResult lockContractResult;
+    case EXECUTE_CONTRACT:
+        ExecuteContractResult executeContractResult;
+    case DESTROY_CONTRACT:
+        DestroyContractResult destroyContractResult;
     }
     tr;
 default:
