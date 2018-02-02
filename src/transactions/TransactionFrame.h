@@ -134,11 +134,16 @@ class TransactionFrame
 
     double getFeeRatio(LedgerManager const& lm) const;
 
+    std::vector<DecoratedSignature> getSignatures();
+
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
+    void addSignatureIfNotExists(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         AccountFrame& account, int32_t neededWeight);
+
+    bool checkHasExecutionResult();
 
     bool checkValid(Application& app, SequenceNumber current);
 

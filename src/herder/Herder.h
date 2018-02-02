@@ -68,6 +68,7 @@ class Herder
     {
         TX_STATUS_PENDING = 0,
         TX_STATUS_DUPLICATE,
+        TX_STATUS_ACCUMULATING_SIGNERS,
         TX_STATUS_ERROR,
         TX_STATUS_COUNT
     };

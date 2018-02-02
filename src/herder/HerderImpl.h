@@ -99,6 +99,14 @@ class HerderImpl : public Herder
     };
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
+    struct ExMap
+    {
+        SequenceNumber mMaxSeq{0};
+        std::unordered_map<Hash, TransactionFramePtr> mTransactions;
+        void addEx(TransactionFramePtr);
+    };
+    typedef std::unordered_map<AccountID, std::shared_ptr<ExMap>> AccountExMap;
+
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
@@ -116,6 +124,8 @@ class HerderImpl : public Herder
     // 2- two ledgers ago. rebroadcast
     // ...
     std::deque<AccountTxMap> mPendingTransactions;
+
+    AccountExMap mPendingExecutions;
 
     void
     updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);

@@ -87,6 +87,8 @@ class OperationFrame
     bool checkValid(SignatureChecker& signatureChecker, Application& app,
                     LedgerDelta* delta = nullptr);
 
+    bool checkIsExecutionResult();
+
     bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
                Application& app);
 

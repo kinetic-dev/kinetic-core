@@ -60,6 +60,9 @@ class AccountFrame : public EntryFrame
         mUpdateSigners = true;
     }
 
+    // whether or not this is a contract
+    bool isContract() const;
+
     // actual balance for the account
     int64_t getBalance() const;
 

@@ -167,6 +167,23 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
     return txmap;
 }
 
+static std::shared_ptr<HerderImpl::ExMap>
+findOrAdd(HerderImpl::AccountExMap& acc, AccountID const& aid)
+{
+    std::shared_ptr<HerderImpl::ExMap> exmap = nullptr;
+    auto i = acc.find(aid);
+    if (i == acc.end())
+    {
+        exmap = std::make_shared<HerderImpl::ExMap>();
+        acc.insert(std::make_pair(aid, exmap));
+    }
+    else
+    {
+        exmap = i->second;
+    }
+    return exmap;
+}
+
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
@@ -301,11 +318,41 @@ HerderImpl::TxMap::recalculate()
     }
 }
 
+void
+HerderImpl::ExMap::addEx(TransactionFramePtr tx)
+{
+    auto const& h = tx->getContentsHash();
+    auto const& existingPair = mTransactions.find(h);
+    if (existingPair != mTransactions.end())
+    {
+        auto const& existingTx = existingPair->second;
+        // TODO this is inefficient
+        for (auto& signature : tx->getSignatures())
+        {
+            existingTx->addSignatureIfNotExists(signature);
+        }
+        for (auto& signature : existingTx->getSignatures())
+        {
+            tx->addSignatureIfNotExists(signature);
+        }
+        return;
+    }
+    mTransactions.insert(std::make_pair(h, tx));
+    mMaxSeq = std::max(tx->getSeqNum(), mMaxSeq);
+}
+
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
     soci::transaction sqltx(mApp.getDatabase().getSession());
     mApp.getDatabase().setCurrentTransactionReadOnly();
+
+    // if transaction is on a contract and is not an execution result, fail here
+    auto const& sourceAcc = tx->getSourceAccount();
+    if (sourceAcc.isContract() && ! tx->checkHasExecutionResult()) {
+      tx->getResult().result.code(txNON_EXEC_ON_CONTRACT);
+      return TX_STATUS_ERROR;
+    }
 
     auto const& acc = tx->getSourceID();
     auto const& txID = tx->getFullHash();
@@ -331,12 +378,22 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         }
     }
 
-    if (!tx->checkValid(mApp, highSeq))
-    {
-        return TX_STATUS_ERROR;
+    if (tx->checkHasExecutionResult()) {
+        auto exmap = findOrAdd(mPendingExecutions, acc);
+        exmap->addEx(tx);
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
+    if (!tx->checkValid(mApp, highSeq))
+    {
+        // TODO if it is an execution result, check if it's still valid or if it's timed out
+        if (tx->checkHasExecutionResult()) {
+            return TX_STATUS_ACCUMULATING_SIGNERS;
+        } else {
+            return TX_STATUS_ERROR;
+        }
+    }
+
+    if (sourceAcc.getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TX_STATUS_ERROR;
@@ -345,6 +402,10 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID)
                               << " for " << KeyUtils::toShortString(acc);
+
+    if (tx->checkHasExecutionResult()) {
+      // if we're here (e.g. the result has succeeded) remove it from our pending execution txs
+    }
 
     auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);

@@ -79,6 +79,9 @@ CreateContractOpFrame::doApply(Application& app, LedgerDelta& delta,
             destAccount->getAccount().balance = mCreateContract.startingBalance;
             destAccount->getAccount().scriptHash.activate() = mCreateContract.scriptHash;
 
+            destAccount->getAccount().signers = mCreateContract.signers;
+            destAccount->setUpdateSigners();
+
             destAccount->storeAdd(delta, db);
 
             app.getMetrics()

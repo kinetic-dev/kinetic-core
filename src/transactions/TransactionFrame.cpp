@@ -123,6 +123,12 @@ TransactionFrame::getMinFee(LedgerManager const& lm) const
     return lm.getTxFee() * count;
 }
 
+std::vector<DecoratedSignature>
+TransactionFrame::getSignatures()
+{
+  return mEnvelope.signatures;
+}
+
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
@@ -135,6 +141,13 @@ void
 TransactionFrame::addSignature(DecoratedSignature const& signature)
 {
     mEnvelope.signatures.push_back(signature);
+}
+
+void
+TransactionFrame::addSignatureIfNotExists(DecoratedSignature const& signature) {
+  if (std::find(mEnvelope.signatures.begin(), mEnvelope.signatures.end(),
+      signature) == mEnvelope.signatures.end())
+          addSignature(signature);
 }
 
 bool
@@ -151,6 +164,13 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 
     return signatureChecker.checkSignature(account.getID(), signers,
                                            neededWeight);
+}
+
+bool
+TransactionFrame::checkHasExecutionResult()
+{
+  auto& op = mOperations[0];
+  return op->checkIsExecutionResult();
 }
 
 AccountFrame::pointer

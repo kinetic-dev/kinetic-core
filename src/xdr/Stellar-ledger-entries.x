@@ -127,18 +127,16 @@ struct AccountEntry
     string32 homeDomain; // can be used for reverse federation and memo lookup
 
     // fields used for signatures
-    // thresholds stores unsigned bytes: [weight of master|low|medium|high]
+    // thresholds stores unsigned bytes: [weight of master|low|medium|high|exec]
     Thresholds thresholds;
 
-    SignerPool signerPools<10>;
+    Signer signers<20>;
 
     // fields used if running an execution node
-    string32* execIPAddr;
     int64 balanceStaked;
 
     // fields used if account represents a contract
     string64* scriptHash;
-    string64* storageHash;
 
     // reserved for future use
     union switch (int v)

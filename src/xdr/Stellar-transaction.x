@@ -27,10 +27,9 @@ enum OperationType
     INFLATION = 9,
     MANAGE_DATA = 10,
     CREATE_CONTRACT = 100,
-    LOCK_CONTRACT = 101,
-    EXECUTE_CONTRACT = 102,
-    DESTROY_CONTRACT = 103,
-    MANAGE_STAKE = 104
+    EXECUTE_CONTRACT = 101,
+    DESTROY_CONTRACT = 102,
+    MANAGE_STAKE = 103
 };
 
 /* CreateAccount
@@ -240,22 +239,7 @@ struct CreateContractOp
     AccountID destination; // contract to create
     int64 startingBalance; // intial amount contract ends up with
     string64 scriptHash;
-    Signer signers<100>;
-};
-
-/* LockContract
-Locks a contract for the specified amount of time.
-
-Threshold: med
-
-Result: LockContractResult
-
-*/
-
-struct LockContractOp
-{
-    AccountID destination; // contract to lock
-    uint64 duration; // the duration to lock for
+    Signer signers<20>;
 };
 
 /* ExecuteContract
@@ -324,8 +308,6 @@ struct Operation
         ManageDataOp manageDataOp;
     case CREATE_CONTRACT:
         CreateContractOp createContractOp;
-    case LOCK_CONTRACT:
-        LockContractOp lockContractOp;
     case EXECUTE_CONTRACT:
         ExecuteContractOp executeContractOp;
     case DESTROY_CONTRACT:
@@ -340,7 +322,8 @@ enum MemoType
     MEMO_TEXT = 1,
     MEMO_ID = 2,
     MEMO_HASH = 3,
-    MEMO_RETURN = 4
+    MEMO_RETURN = 4,
+    MEMO_EXEC = 5
 };
 
 union Memo switch (MemoType type)
@@ -355,6 +338,8 @@ case MEMO_HASH:
     Hash hash; // the hash of what to pull from the content server
 case MEMO_RETURN:
     Hash retHash; // the hash of the tx you are rejecting
+case MEMO_EXEC:
+    Hash execHash; // the hash of the contract execution
 };
 
 struct TimeBounds
@@ -746,29 +731,6 @@ default:
     void;
 };
 
-/******* LockContract Result ********/
-
-enum LockContractResultCode
-{
-    // codes considered as "success" for the operation
-    LOCK_CONTRACT_SUCCESS = 0, // account was created
-
-    // codes considered as "failure" for the operation
-    LOCK_CONTRACT_MALFORMED = -1,   // invalid destination
-    LOCK_CONTRACT_UNDERFUNDED = -2, // not enough funds in source account
-    LOCK_CONTRACT_EXCEEDS_DURATION =
-        -3, // lock duration is longer than allowed
-    LOCK_CONTRACT_ALREADY_LOCKED = -4 // contract is already locked
-};
-
-union LockContractResult switch (LockContractResultCode code)
-{
-case LOCK_CONTRACT_SUCCESS:
-    void;
-default:
-    void;
-};
-
 /******* ExecuteContract Result ********/
 
 enum ExecuteContractResultCode
@@ -851,8 +813,6 @@ case opINNER:
         ManageDataResult manageDataResult;
     case CREATE_CONTRACT:
         CreateContractResult createContractResult;
-    case LOCK_CONTRACT:
-        LockContractResult lockContractResult;
     case EXECUTE_CONTRACT:
         ExecuteContractResult executeContractResult;
     case DESTROY_CONTRACT:
@@ -874,12 +834,13 @@ enum TransactionResultCode
     txMISSING_OPERATION = -4, // no operation was specified
     txBAD_SEQ = -5,           // sequence number does not match source account
 
-    txBAD_AUTH = -6,             // too few valid signatures / wrong network
-    txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
-    txNO_ACCOUNT = -8,           // source account not found
-    txINSUFFICIENT_FEE = -9,     // fee is too small
-    txBAD_AUTH_EXTRA = -10,      // unused signatures attached to transaction
-    txINTERNAL_ERROR = -11       // an unknown error occured
+    txBAD_AUTH = -6,               // too few valid signatures / wrong network
+    txINSUFFICIENT_BALANCE = -7,   // fee would bring account below reserve
+    txNO_ACCOUNT = -8,             // source account not found
+    txINSUFFICIENT_FEE = -9,       // fee is too small
+    txBAD_AUTH_EXTRA = -10,        // unused signatures attached to transaction
+    txNON_EXEC_ON_CONTRACT = -11,  // non execution attempted on contract
+    txINTERNAL_ERROR = -12         // an unknown error occured
 };
 
 struct TransactionResult

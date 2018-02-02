@@ -85,9 +85,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
     case CREATE_CONTRACT:
         return std::make_shared<CreateContractOpFrame>(op, res, tx);
-    /*case LOCK_CONTRACT:
-        return std::make_shared<LockContractOpFrame>(op, res, tx);
-    case EXECUTE_CONTRACT:
+    /*case EXECUTE_CONTRACT:
         return std::make_shared<ExecuteContractOpFrame>(op, res, tx);
     case DESTROY_CONTRACT:
         return std::make_shared<DestroyContractOpFrame>(op, res, tx);*/
@@ -203,5 +201,11 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     mResult.tr().type(mOperation.body.type());
 
     return doCheckValid(app);
+}
+
+bool
+OperationFrame::checkIsExecutionResult()
+{
+  return mOperation.body.type() == EXECUTE_CONTRACT;
 }
 }
